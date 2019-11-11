@@ -14,23 +14,24 @@ Introduction: 微信防撤回功能
 此项目需要的库有：itchat，apscheduler
 
 """
-import itchat
-from itchat.content import *
 import os
-import time
-import shutil
+import pprint
 import re
+import shutil
+import time
 
-# import json
-# import pysnooper
-
+import itchat
 from apscheduler.schedulers.background import BackgroundScheduler
+from itchat.content import *
+
+import params
+
+# import pysnooper
 
 # 文件临时存储地址
 rec_tmp_dir = os.path.join(os.getcwd(), 'tmp', 'revoke')
 is_auto_repost = True  # 是否转发给撤回的人或者群
 CLEAN_CACHE_INTERVAL_MINUTES = 5  # 心跳时间间隔（分钟）
-
 
 # 存储数据的字典
 rec_msg_dict = {}
@@ -38,7 +39,6 @@ rec_msg_dict = {}
 # 判断消息是否为撤回消息公告(包括了简体|繁体|英文)
 revoke_msg_compile = r'^<sysmsg type="revokemsg"><revokemsg><session>(.*?)<\/session>' \
                      r'<oldmsgid>.*?<\/oldmsgid><msgid>(.*?)<\/msgid>.*?"(.*?)"\s(?:撤回了一条消息|已回收一條訊息|recalled a message)'
-
 
 # 用于定时清理缓存数据
 scheduler = BackgroundScheduler()
@@ -59,7 +59,6 @@ content_type_dict = {
 }
 
 
-
 @itchat.msg_register([TEXT, PICTURE, RECORDING, ATTACHMENT, VIDEO, CARD, MAP, SHARING], isFriendChat=True)
 def handle_friend_msg(msg):
     """
@@ -68,13 +67,17 @@ def handle_friend_msg(msg):
    :return:
    """
     # print(json.dumps(msg, ensure_ascii=False))
+    print('朋友消息:\n')
+    pprint.pprint(msg)
+
     msg_id = msg['MsgId']  # 消息 id
     msg_from_name = msg['User']['NickName']  # 用户的昵称
+    msg_from_name_remark = msg['User']['RemarkName']
     msg_from_uid = msg['FromUserName']  # 用户的昵称
 
     msg_content = ''
     # 收到信息的时间
-    msg_time_rec = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    msg_time_rec = time.time()  # time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     msg_create_time = msg['CreateTime']
     msg_type = msg['Type']
 
@@ -100,6 +103,7 @@ def handle_friend_msg(msg):
         msg_id: {
             'is_group': False,
             'msg_from_name': msg_from_name,
+            'msg_from_name_remark': msg_from_name_remark,
             'msg_from_uid': msg_from_uid,
             'msg_time_rec': msg_time_rec,
             'msg_create_time': msg_create_time,
@@ -110,7 +114,6 @@ def handle_friend_msg(msg):
     # print(msg)
 
 
-
 @itchat.msg_register([TEXT, PICTURE, RECORDING, ATTACHMENT, VIDEO, CARD, MAP, SHARING], isGroupChat=True)
 def information(msg):
     """
@@ -119,6 +122,9 @@ def information(msg):
     :return:
     """
     # print(json.dumps(msg, ensure_ascii=False))
+    # print('群聊消息:\n')
+    # pprint.pprint(msg)
+
     msg_id = msg['MsgId']  # 消息id
     msg_from_name = msg['ActualNickName']  # 发送者名称
     msg_from_uid = msg['ActualUserName']  # 发送者的id
@@ -176,6 +182,8 @@ def revoke_msg(msg):
     """
     content = msg['Content']
     # print(json.dumps(msg, ensure_ascii=False))
+    # pprint.pprint(msg)
+
     infos = re.findall(revoke_msg_compile, content)
     if infos:
         _, old_msg_id, nickname = infos[0]
@@ -190,6 +198,9 @@ def revoke_msg(msg):
             is_group = old_msg.get('is_group')
             send_msg = ''
             if is_group:
+                if old_msg.get('msg_group_name') not in params.LISTENING_GROUPS:
+                    print('不在防撤回的群中')
+                    return
                 uid = old_msg.get('msg_group_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
                 send_msg = '群『{msg_group_name}』里的『{msg_from_name}』撤回了一条{msg_type_name}信息'.format(
@@ -198,6 +209,10 @@ def revoke_msg(msg):
                     msg_type_name=msg_type_name,
                 )
             else:
+                if (old_msg.get('msg_from_name') not in params.LISTENING_FRIENDS_NICKNAME and
+                        old_msg.get('msg_from_name_remark') not in params.LISTENING_FRIENDS_REMARK_NAME):
+                    print('不在防撤回的好友中')
+                    return
                 uid = old_msg.get('msg_from_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
                 send_msg = '『{msg_from_name}』撤回了一条{msg_type_name}信息'.format(
@@ -227,7 +242,7 @@ def send_revoke_msg(msg_content, toUserName='filehelper', msg_type='Text', is_au
     # 发送给文件传输助手
     itchat.send(msg_content, 'filehelper')
     if is_auto_repost and toUserName != 'filehelper':
-        itchat.send(msg_content, toUserName) #发送给好友，或者群组。
+        itchat.send(msg_content, toUserName)  # 发送给好友，或者群组。
 
 
 def clear_cache():
@@ -238,6 +253,7 @@ def clear_cache():
     """
     cur_time = time.time()  # 当前时间
     for key, value in list(rec_msg_dict.items()):
+        print(value.get('msg_time_rec'))
         if cur_time - value.get('msg_time_rec') > 120:
             if value.get('msg_type') not in ('Text', 'Map', 'Card', 'Sharing'):
                 file_path = value.get('msg_content')
@@ -245,7 +261,6 @@ def clear_cache():
                 if os.path.exists(file_path):
                     os.remove(file_path)
             rec_msg_dict.pop(key)
-
 
 
 def after_logout():
@@ -264,8 +279,8 @@ def before_login():
     :return:
     """
 
-    itchat.get_friends(update=True) # 更新用户好友状态
-    itchat.get_chatrooms(update=True) # 更新用户群组状态
+    itchat.get_friends(update=True)  # 更新用户好友状态
+    itchat.get_chatrooms(update=True)  # 更新用户群组状态
 
     # 如果还存在定时任务，先关闭。
     if scheduler and scheduler.get_jobs():
@@ -287,5 +302,5 @@ if __name__ == '__main__':
         os.makedirs(rec_tmp_dir)
 
     # itchat.logout()  # 如果微信在线，则退出。重新登录。
-    itchat.auto_login(loginCallback=before_login, exitCallback=after_logout)
+    itchat.auto_login(hotReload=True, loginCallback=before_login, exitCallback=after_logout)
     itchat.run(blockThread=True)
