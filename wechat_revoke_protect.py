@@ -15,12 +15,14 @@ Introduction: 微信防撤回功能
 
 """
 import os
-import pprint
+# import pprint
 import re
 import shutil
 import time
+from urllib.parse import unquote
 
 import itchat
+import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from itchat.content import *
 
@@ -31,6 +33,7 @@ import params
 # 文件临时存储地址
 rec_tmp_dir = os.path.join(os.getcwd(), 'tmp', 'revoke')
 is_auto_repost = True  # 是否转发给撤回的人或者群
+is_auto_reply = True
 CLEAN_CACHE_INTERVAL_MINUTES = 5  # 心跳时间间隔（分钟）
 
 # 存储数据的字典
@@ -59,6 +62,22 @@ content_type_dict = {
 }
 
 
+def get_xiaobing_response(_info):
+    url = f'https://www4.bing.com/socialagent/chat?q={_info}&anid=123456'
+    try:
+        response = requests.get(url)
+        try:
+            res = response.json()
+            reply = unquote(res['InstantMessage']['ReplyText'])
+            print(reply)
+            return reply
+        except Exception as e2:
+            print(e2)
+    except Exception as e1:
+        print(e1)
+    return params.DEFAULT_REPLY
+
+
 @itchat.msg_register([TEXT, PICTURE, RECORDING, ATTACHMENT, VIDEO, CARD, MAP, SHARING], isFriendChat=True)
 def handle_friend_msg(msg):
     """
@@ -67,8 +86,8 @@ def handle_friend_msg(msg):
    :return:
    """
     # print(json.dumps(msg, ensure_ascii=False))
-    print('朋友消息:\n')
-    pprint.pprint(msg)
+    # print('朋友消息:\n')
+    # pprint.pprint(msg)
 
     msg_id = msg['MsgId']  # 消息 id
     msg_from_name = msg['User']['NickName']  # 用户的昵称
@@ -83,7 +102,10 @@ def handle_friend_msg(msg):
 
     if msg_type == 'Text':
         msg_content = msg['Content']
-
+        if (is_auto_reply and
+                (msg.get("User").get("NickName") in params.LISTENING_FRIENDS_NICKNAME or
+                 msg.get("User").get("RemarkName") in params.LISTENING_FRIENDS_REMARK_NAME)):
+            return f'[自动回复]: {get_xiaobing_response(msg["Content"])}'
     elif msg_type in ('Picture', 'Recording', 'Video', 'Attachment'):
         msg_content = os.path.join(rec_tmp_dir, msg['FileName'])
         msg['Text'](msg_content)  # 保存数据至此路径
@@ -140,6 +162,11 @@ def information(msg):
 
     if msg_type == 'Text':
         msg_content = msg['Content']
+        print(msg.get("isAt"), msg.get("User").get("NickName"))
+        if (is_auto_reply and msg.get("isAt") and
+                (msg.get("User").get("NickName") in params.LISTENING_GROUPS)):
+            return f'[自动回复]: {get_xiaobing_response(msg["Content"])}'
+
     elif msg_type in ('Picture', 'Recording', 'Video', 'Attachment'):
         msg_content = os.path.join(rec_tmp_dir, msg['FileName'])
         msg['Text'](msg_content)  # 保存数据至此路径
@@ -198,8 +225,8 @@ def revoke_msg(msg):
             is_group = old_msg.get('is_group')
             send_msg = ''
             if is_group:
-                if old_msg.get('msg_group_name') not in params.LISTENING_GROUPS:
-                    print('不在防撤回的群中')
+                if msg.get("User").get("NickName") not in params.LISTENING_GROUPS:
+                    print(f'{msg.get("User").get("NickName")}不在防撤回的群中')
                     return
                 uid = old_msg.get('msg_group_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
@@ -209,9 +236,11 @@ def revoke_msg(msg):
                     msg_type_name=msg_type_name,
                 )
             else:
-                if (old_msg.get('msg_from_name') not in params.LISTENING_FRIENDS_NICKNAME and
-                        old_msg.get('msg_from_name_remark') not in params.LISTENING_FRIENDS_REMARK_NAME):
-                    print('不在防撤回的好友中')
+                # 请勿在程序运行中取消对对象的备注，因为取消备注不会及时更新，而更换备注会及时更新
+                if (msg.get("User").get("NickName") not in params.LISTENING_FRIENDS_NICKNAME and
+                        msg.get("User").get("RemarkName") not in params.LISTENING_FRIENDS_REMARK_NAME):
+                    print(f'"{msg.get("User").get("NickName")}"或"{msg.get("User").get("RemarkName")}"'
+                          f'不在防撤回的好友中')
                     return
                 uid = old_msg.get('msg_from_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
@@ -240,9 +269,10 @@ def send_revoke_msg(msg_content, toUserName='filehelper', msg_type='Text', is_au
     msg_content = '{}{}'.format(at_, msg_content)
 
     # 发送给文件传输助手
-    itchat.send(msg_content, 'filehelper')
     if is_auto_repost and toUserName != 'filehelper':
         itchat.send(msg_content, toUserName)  # 发送给好友，或者群组。
+    else:
+        itchat.send(msg_content, 'filehelper')
 
 
 def clear_cache():
