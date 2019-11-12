@@ -92,7 +92,8 @@ def handle_friend_msg(msg):
 
     msg_content = ''
     # 收到信息的时间
-    msg_time_rec = time.time()  # time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    msg_time_rec = time.time()
+    msg_time_rec_format = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     msg_create_time = msg['CreateTime']
     msg_type = msg['Type']
 
@@ -103,6 +104,10 @@ def handle_friend_msg(msg):
 
     if msg_type == 'Text':
         msg_content = msg['Content']
+        print(f'{msg_time_rec_format}, '
+              f'user:"{msg_from_name}", '
+              f'remark name:"{msg_from_name_remark}", '
+              f'content:"{msg["Content"]}"')
         if (options.is_auto_reply and
                 (msg.get("User").get("NickName") in options.LISTENING_FRIENDS_NICKNAME or
                  msg.get("User").get("RemarkName") in options.LISTENING_FRIENDS_REMARK_NAME)):
@@ -157,12 +162,17 @@ def information(msg):
     msg_content = ''
     # 收到信息的时间
     msg_time_rec = time.time()
+    msg_time_rec_format = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     msg_create_time = msg['CreateTime']
     msg_type = msg['Type']
 
     if msg_type == 'Text':
         msg_content = msg['Content']
-        print(f'is at: {msg.get("isAt")}, user: {msg.get("User").get("NickName")}')
+        print(f'{msg_time_rec_format}, '
+              f'isAt:"{msg.get("isAt")}", '
+              f'group:"{msg.get("User").get("NickName")}", '
+              f'user:"{msg_from_name}", '
+              f'content:"{msg["Content"]}"')
         if (options.is_auto_reply and msg.get("isAt") and
                 (msg.get("User").get("NickName") in options.LISTENING_GROUPS)):
             return f'[自动回复]: {get_xiaobing_response(msg["Content"])}'
@@ -224,7 +234,7 @@ def revoke_msg(msg):
             send_msg = ''
             if is_group:
                 if msg.get("User").get("NickName") not in options.LISTENING_GROUPS:
-                    print(f'{msg.get("User").get("NickName")}不在防撤回的群中')
+                    print(f'"{msg.get("User").get("NickName")}" --不在防撤回的群中')
                     return
                 uid = old_msg.get('msg_group_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
@@ -238,7 +248,7 @@ def revoke_msg(msg):
                 if (msg.get("User").get("NickName") not in options.LISTENING_FRIENDS_NICKNAME and
                         msg.get("User").get("RemarkName") not in options.LISTENING_FRIENDS_REMARK_NAME):
                     print(f'"{msg.get("User").get("NickName")}"或"{msg.get("User").get("RemarkName")}"'
-                          f'不在防撤回的好友中')
+                          f' --不在防撤回的好友中')
                     return
                 uid = old_msg.get('msg_from_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
