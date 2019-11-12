@@ -159,6 +159,8 @@ def information(msg):
     msg_group_uid = msg['User']['UserName']  # 群uid
     msg_group_name = msg['User']['NickName']  # 群名称
 
+    msg_self_display_name = msg['User']['Self']['DisplayName']
+
     msg_content = ''
     # 收到信息的时间
     msg_time_rec = time.time()
@@ -175,7 +177,7 @@ def information(msg):
               f'content:"{msg["Content"]}"')
         if (options.is_auto_reply and msg.get("isAt") and
                 (msg.get("User").get("NickName") in options.LISTENING_GROUPS)):
-            return f'[自动回复]: {get_xiaobing_response(msg["Content"])}'
+            return f'[自动回复]: {get_xiaobing_response(msg["Content"].strip(f"@{msg_self_display_name}").strip())}'
 
     elif msg_type in ('Picture', 'Recording', 'Video', 'Attachment'):
         msg_content = os.path.join(rec_tmp_dir, msg['FileName'])
