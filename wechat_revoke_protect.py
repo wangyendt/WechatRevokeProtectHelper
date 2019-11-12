@@ -247,17 +247,19 @@ def revoke_msg(msg):
                 )
             else:
                 # 请勿在程序运行中取消对对象的备注，因为取消备注不会及时更新，而更换备注会及时更新
-                if (msg.get("User").get("NickName") not in options.LISTENING_FRIENDS_NICKNAME and
-                        msg.get("User").get("RemarkName") not in options.LISTENING_FRIENDS_REMARK_NAME):
-                    print(f'"{msg.get("User").get("NickName")}"或"{msg.get("User").get("RemarkName")}"'
-                          f' --不在防撤回的好友中')
-                    return
-                uid = old_msg.get('msg_from_uid')
+                # if (msg.get("User").get("NickName") not in options.LISTENING_FRIENDS_NICKNAME and
+                #         msg.get("User").get("RemarkName") not in options.LISTENING_FRIENDS_REMARK_NAME):
+                #     print(f'"{msg.get("User").get("NickName")}"或"{msg.get("User").get("RemarkName")}"'
+                #           f' --不在防撤回的好友中')
+                #     return
+                # uid = old_msg.get('msg_from_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
                 send_msg = '『{msg_from_name}』撤回了一条{msg_type_name}信息↓'.format(
                     msg_from_name=msg_from_name,
                     msg_type_name=msg_type_name,
                 )
+                # 私聊撤回发到filehelper中
+                uid = 'filehelper'
             send_revoke_msg(send_msg, uid, is_auto_forward=options.is_auto_forward)
             send_revoke_msg(msg_content, uid, msg_type, options.is_auto_forward)
 

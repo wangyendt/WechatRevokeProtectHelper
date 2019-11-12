@@ -10,12 +10,8 @@
 """
 
 ME_UID = '@21430844c9a0787f33ce5d93aed6962e'
-LISTENING_FRIENDS_NICKNAME = [
-    'Landiy', ':-D', '🇨🇳瓶子'
-]
-LISTENING_FRIENDS_REMARK_NAME = [
-    '蓝典逸 Landiy', '彭满萍', '冉晨宇', '温婷'
-]
+LISTENING_FRIENDS_NICKNAME = [':-D']
+LISTENING_FRIENDS_REMARK_NAME = []
 LISTENING_GROUPS = [
     '再跑一圈就卸载', '跑跑卡丁车', '元旦北海道小队-平时王者自律',
     '爸爸 妈妈 王也', '试验群', '思想生活交流群-NDT码农', '爱吃饭，爱生活，好嗨哟'
