@@ -15,7 +15,7 @@ Introduction: 微信防撤回功能
 
 """
 import os
-import pprint
+# import pprint
 import re
 import shutil
 import time
@@ -217,7 +217,7 @@ def revoke_msg(msg):
     """
     content = msg['Content']
     # print(json.dumps(msg, ensure_ascii=False))
-    pprint.pprint(msg)
+    # pprint.pprint(msg)
 
     infos = re.findall(revoke_msg_compile, content, re.S)
     if infos:
