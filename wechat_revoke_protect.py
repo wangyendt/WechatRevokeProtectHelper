@@ -14,6 +14,7 @@ Introduction: 微信防撤回功能
 此项目需要的库有：itchat，apscheduler
 
 """
+import base64
 import os
 # import pprint
 import re
@@ -21,7 +22,9 @@ import shutil
 import time
 from urllib.parse import unquote
 
+import cv2
 import itchat
+import math
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from itchat.content import *
@@ -73,6 +76,40 @@ def get_xiaobing_response(_info):
     return options.DEFAULT_REPLY
 
 
+def mark_face_baidu_api(file_path, to_user_name):
+    host = 'https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=GFx4vMqk6kslchni22WlLHsC&client_secret=7juflRO0Rf7m5ZZ3OcVyotvNTBLXKann'
+    header = {'Content-Type': 'application/json; charset=UTF-8'}
+    response = requests.post(url=host, headers=header)  # <class 'requests.models.Response'>
+    access_token = response.json()['access_token']
+    with open(file_path, 'rb') as f:
+        pic = base64.b64encode(f.read())
+        image = str(pic, 'utf-8')
+    request_url = "https://aip.baidubce.com/rest/2.0/face/v3/detect"
+    params = {"image": image, "image_type": "BASE64", "face_field": "faceshape,facetype,beauty,"}
+    header = {'Content-Type': 'application/json'}
+    request_url = request_url + "?access_token=" + access_token
+    result = requests.post(url=request_url, data=params, headers=header).json()
+    face_num = result["result"]["face_num"]
+    faces = result["result"]["face_list"]
+    reply = f'共发现{face_num}张脸:\n'
+    ret_image = cv2.imread(file_path)
+    for face in faces:
+        face_prob = face["face_probability"]
+        beauty = face["beauty"]
+        beauty = round(math.sqrt(float(beauty)) * 10, 2)
+        location = face["location"]
+        left, top, width, height = tuple(map(lambda x: int(location[x]), ('left', 'top', 'width', 'height')))
+        cv2.rectangle(ret_image, (left, top), (left + width, top + height), (0, 0, 255), 6)
+        reply += f'人脸概率为: {face_prob}, 颜值评分为{beauty}分/100分'
+    tmp_img_path = 'tmp_img.png'
+    cv2.imwrite(tmp_img_path, ret_image)
+    itchat.send_image(tmp_img_path, to_user_name)
+    itchat.send_msg(reply, to_user_name)
+    if os.path.exists(tmp_img_path):
+        os.remove(tmp_img_path)
+    # return reply
+
+
 @itchat.msg_register([TEXT, PICTURE, RECORDING, ATTACHMENT, VIDEO, CARD, MAP, SHARING], isFriendChat=True)
 def handle_friend_msg(msg):
     """
@@ -97,10 +134,20 @@ def handle_friend_msg(msg):
     msg_create_time = msg['CreateTime']
     msg_type = msg['Type']
 
+    if msg_type == 'Picture':
+        if (options.is_enable_mark_face and
+                (msg.get("User").get("NickName") in options.LISTENING_FRIENDS_NICKNAME or
+                 msg.get("User").get("RemarkName") in options.LISTENING_FRIENDS_REMARK_NAME)):
+            msg_content = os.path.join(os.getcwd(), 'tmp', 'mark face', msg['FileName'])
+            msg['Text'](msg_content)  # 保存数据至此路径
+            mark_face_baidu_api(msg_content, msg_from_uid)
+            if os.path.exists(msg_content):
+                os.remove(msg_content)
+
     # 不对自己的消息进行处理
-    print(f'msg_from_uid: {msg_from_uid}, me: {options.ME_UID}')
-    if msg_from_uid == options.ME_UID:
-        return
+    # print(f'msg_from_uid: {msg_from_uid}, me: {options.ME_UID}')
+    # if msg_from_uid == options.ME_UID:
+    #     return
 
     if msg_type == 'Text':
         msg_content = msg['Content']
@@ -112,9 +159,11 @@ def handle_friend_msg(msg):
                 (msg.get("User").get("NickName") in options.LISTENING_FRIENDS_NICKNAME or
                  msg.get("User").get("RemarkName") in options.LISTENING_FRIENDS_REMARK_NAME)):
             return f'[自动回复]: {get_xiaobing_response(msg["Content"])}'
+
     elif msg_type in ('Picture', 'Recording', 'Video', 'Attachment'):
         msg_content = os.path.join(rec_tmp_dir, msg['FileName'])
         msg['Text'](msg_content)  # 保存数据至此路径
+
 
     # 名片，是无法用 itchat 发送的
     elif msg_type == 'Card':
@@ -183,6 +232,11 @@ def information(msg):
         msg_content = os.path.join(rec_tmp_dir, msg['FileName'])
         msg['Text'](msg_content)  # 保存数据至此路径
 
+        if msg_type == 'Picture':
+            if (options.is_enable_mark_face and
+                    (msg.get("User").get("NickName") in options.LISTENING_GROUPS)):
+                mark_face_baidu_api(msg_content, msg_group_uid)
+
     # 名片，是无法用 itchat 发送的
     elif msg_type == 'Card':
         recommendInfo = msg['RecommendInfo']
@@ -238,7 +292,7 @@ def revoke_msg(msg):
                 if msg.get("User").get("NickName") not in options.LISTENING_GROUPS:
                     print(f'"{msg.get("User").get("NickName")}" --不在防撤回的群中')
                     return
-                uid = old_msg.get('msg_group_uid')
+                # uid = old_msg.get('msg_group_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
                 send_msg = '群『{msg_group_name}』里的『{msg_from_name}』撤回了一条{msg_type_name}信息↓'.format(
                     msg_group_name=old_msg.get('msg_group_name'),
@@ -258,8 +312,8 @@ def revoke_msg(msg):
                     msg_from_name=msg_from_name,
                     msg_type_name=msg_type_name,
                 )
-                # 私聊撤回发到filehelper中
-                uid = 'filehelper'
+            # 私聊撤回发到filehelper中
+            uid = 'filehelper'
             send_revoke_msg(send_msg, uid, is_auto_forward=options.is_auto_forward)
             send_revoke_msg(msg_content, uid, msg_type, options.is_auto_forward)
 
