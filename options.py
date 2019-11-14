@@ -11,12 +11,12 @@
 
 ME_UID = '@9eeccf0fe6c03d0bd9997ecd60d2f68d'
 ME_NAME = '王也 Wayne'
-LISTENING_FRIENDS_NICKNAME = [':-D', 'Landiy']
+LISTENING_FRIENDS_NICKNAME = [':-D', 'Landiy', 'Suerte']
 LISTENING_FRIENDS_REMARK_NAME = []
 LISTENING_GROUPS = [
     '跑跑卡丁车', '元旦北海道小队-平时王者自律', '再跑一圈就卸载',
     '爸爸 妈妈 王也', '试验群', '思想生活交流群-NDT码农', '爱吃饭，爱生活，好嗨哟',
-    '幸福家庭'
+    '幸福家庭', 'leet code / tf进阶学习'
 ]
 DEFAULT_REPLY = '[对方已离线] 默认回复'
 
