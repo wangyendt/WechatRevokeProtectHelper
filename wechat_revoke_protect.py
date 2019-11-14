@@ -85,29 +85,40 @@ def mark_face_baidu_api(file_path, to_user_name):
         pic = base64.b64encode(f.read())
         image = str(pic, 'utf-8')
     request_url = "https://aip.baidubce.com/rest/2.0/face/v3/detect"
-    params = {"image": image, "image_type": "BASE64", "face_field": "faceshape,facetype,beauty,"}
+    params = {"image": image, "image_type": "BASE64", "max_face_num": 10,
+              "face_field": "age,beauty,expression,faceshape,gender,glasses,landmark,race,qualities"}
     header = {'Content-Type': 'application/json'}
     request_url = request_url + "?access_token=" + access_token
     result = requests.post(url=request_url, data=params, headers=header).json()
-    face_num = result["result"]["face_num"]
-    faces = result["result"]["face_list"]
-    reply = f'共发现{face_num}张脸:\n'
-    ret_image = cv2.imread(file_path)
-    for face in faces:
-        face_prob = face["face_probability"]
-        beauty = face["beauty"]
-        beauty = round(math.sqrt(float(beauty)) * 10, 2)
-        location = face["location"]
-        left, top, width, height = tuple(map(lambda x: int(location[x]), ('left', 'top', 'width', 'height')))
-        cv2.rectangle(ret_image, (left, top), (left + width, top + height), (0, 0, 255), 6)
-        reply += f'人脸概率为: {face_prob}, 颜值评分为{beauty}分/100分'
-    tmp_img_path = 'tmp_img.png'
-    cv2.imwrite(tmp_img_path, ret_image)
-    itchat.send_image(tmp_img_path, to_user_name)
-    itchat.send_msg(reply, to_user_name)
-    if os.path.exists(tmp_img_path):
-        os.remove(tmp_img_path)
-    # return reply
+    if result:
+        if "result" in result:
+            if "face_num" in result["result"]:
+                face_num = result["result"]["face_num"]
+                faces = result["result"]["face_list"]
+                reply = f'共发现{face_num}张脸:\n'
+                ret_image = cv2.imread(file_path)
+                for face in faces:
+                    face_prob = face["face_probability"]
+                    age = face["age"]
+                    gender = '小姐姐' if face["gender"]['type'] == 'female' else '小哥哥'
+                    beauty = face["beauty"]
+                    beauty = round(math.sqrt(float(beauty)) * 10, 2)
+                    location = face["location"]
+                    left, top, width, height = tuple(map(lambda x: int(location[x]), ('left', 'top', 'width', 'height')))
+                    cv2.rectangle(ret_image, (left, top), (left + width, top + height), (0, 0, 255), 6)
+                    reply += f'人脸概率为: {face_prob}, 这位{age}岁的{gender}颜值评分为{beauty}分/100分\n'
+                tmp_img_path = 'tmp_img.png'
+                cv2.imwrite(tmp_img_path, ret_image)
+                itchat.send_image(tmp_img_path, to_user_name)
+                itchat.send_msg(reply, to_user_name)
+                if os.path.exists(tmp_img_path):
+                    os.remove(tmp_img_path)
+            else:
+                itchat.send_msg('什么都没识别到!~', to_user_name)
+        else:
+            itchat.send_msg('什么都没识别到!~', to_user_name)
+    else:
+        itchat.send_msg('什么都没识别到!~', to_user_name)
 
 
 @itchat.msg_register([TEXT, PICTURE, RECORDING, ATTACHMENT, VIDEO, CARD, MAP, SHARING], isFriendChat=True)
@@ -134,20 +145,30 @@ def handle_friend_msg(msg):
     msg_create_time = msg['CreateTime']
     msg_type = msg['Type']
 
+    if msg_from_uid == msg_to_uid:
+        options.ME_UID = msg_from_uid
+
     if msg_type == 'Picture':
         if (options.is_enable_mark_face and
                 (msg.get("User").get("NickName") in options.LISTENING_FRIENDS_NICKNAME or
                  msg.get("User").get("RemarkName") in options.LISTENING_FRIENDS_REMARK_NAME)):
-            msg_content = os.path.join(os.getcwd(), 'tmp', 'mark face', msg['FileName'])
+            mark_face_dir = os.path.join(os.getcwd(), 'tmp', 'mark face')
+            if not os.path.exists(mark_face_dir):
+                os.makedirs(mark_face_dir)
+            msg_content = os.path.join(mark_face_dir, msg['FileName'])
             msg['Text'](msg_content)  # 保存数据至此路径
-            mark_face_baidu_api(msg_content, msg_from_uid)
-            if os.path.exists(msg_content):
-                os.remove(msg_content)
+            if msg_from_uid == options.ME_UID:
+                mark_face_baidu_api(msg_content, msg_to_uid)
+            else:
+                mark_face_baidu_api(msg_content, msg_from_uid)
+            shutil.rmtree(mark_face_dir)
+            # if os.path.exists(msg_content):
+            #     os.remove(msg_content)
 
     # 不对自己的消息进行处理
-    # print(f'msg_from_uid: {msg_from_uid}, me: {options.ME_UID}')
-    # if msg_from_uid == options.ME_UID:
-    #     return
+    print(f'msg_from_uid: {msg_from_uid}, me: {options.ME_UID}')
+    if msg_from_uid == options.ME_UID:
+        return
 
     if msg_type == 'Text':
         msg_content = msg['Content']
@@ -163,7 +184,6 @@ def handle_friend_msg(msg):
     elif msg_type in ('Picture', 'Recording', 'Video', 'Attachment'):
         msg_content = os.path.join(rec_tmp_dir, msg['FileName'])
         msg['Text'](msg_content)  # 保存数据至此路径
-
 
     # 名片，是无法用 itchat 发送的
     elif msg_type == 'Card':
