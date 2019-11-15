@@ -9,10 +9,10 @@
 @time: 2019/11/11 17:55
 """
 
-ME_UID = '@9eeccf0fe6c03d0bd9997ecd60d2f68d'
+ME_UID = '@94d9aa6bd1133aab30b6dd037988abb6'
 ME_NAME = '王也 Wayne'
 LISTENING_FRIENDS_NICKNAME = [':-D', 'Landiy', 'Suerte']
-LISTENING_FRIENDS_REMARK_NAME = []
+LISTENING_FRIENDS_REMARK_NAME = ['魏锦华']
 LISTENING_GROUPS = [
     '跑跑卡丁车', '元旦北海道小队-平时王者自律', '再跑一圈就卸载',
     '爸爸 妈妈 王也', '试验群', '思想生活交流群-NDT码农', '爱吃饭，爱生活，好嗨哟',
