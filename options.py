@@ -23,5 +23,6 @@ DEFAULT_REPLY = '[对方已离线] 默认回复'
 CLEAN_CACHE_INTERVAL_MINUTES = 5
 
 is_auto_forward = True  # 是否转发给撤回的人或者群
-is_auto_reply = False
+is_auto_reply = True
 is_enable_mark_face = True
+is_gen_poem = True

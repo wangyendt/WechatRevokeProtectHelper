@@ -19,6 +19,7 @@ import os
 # import pprint
 import re
 import shutil
+import subprocess
 import time
 from urllib.parse import unquote
 
@@ -130,6 +131,20 @@ def mark_face_baidu_api(file_path, to_user_name):
         itchat.send_msg('什么都没识别到!~', to_user_name)
 
 
+def generate_poem(content, to_user_name):
+    print(content)
+    if '藏头诗' in content:
+        lines = content.split('\n')
+        head, style = lines[1].replace('[头]', ''), lines[2].replace('[风格]', '')
+        print(head, style)
+        builder = subprocess.Popen(f'gen_poem.bat "{head}" "{style}" True')
+        builder.wait()
+        with open('tools/generate_poem/result.txt', 'r') as f:
+            ret = f.readlines()[0]
+            print(ret)
+            itchat.send_msg(ret, to_user_name)
+
+
 @itchat.msg_register([TEXT, PICTURE, RECORDING, ATTACHMENT, VIDEO, CARD, MAP, SHARING], isFriendChat=True)
 def handle_friend_msg(msg):
     """
@@ -158,6 +173,18 @@ def handle_friend_msg(msg):
         global_vars['me_uid'] = msg_from_uid
         read_write_me_uid('w', content=global_vars['me_uid'])
 
+    if msg_type == 'Text':
+        if (options.is_gen_poem and
+                (msg.get("User").get("NickName") in options.LISTENING_FRIENDS_NICKNAME or
+                 msg.get("User").get("RemarkName") in options.LISTENING_FRIENDS_REMARK_NAME)):
+            msg_content = msg['Content']
+            print(msg_content)
+            if '[藏头诗]' in msg_content and '[头]' in msg_content and '[风格]' in msg_content:
+                if msg_from_uid == global_vars['me_uid']:
+                    generate_poem(msg_content, msg_to_uid)
+                else:
+                    generate_poem(msg_content, msg_from_uid)
+
     if msg_type == 'Picture':
         if (options.is_enable_mark_face and
                 (msg.get("User").get("NickName") in options.LISTENING_FRIENDS_NICKNAME or
@@ -185,11 +212,11 @@ def handle_friend_msg(msg):
         print(f'{msg_time_rec_format}, '
               f'user:"{msg_from_name}", '
               f'remark name:"{msg_from_name_remark}", '
-              f'content:"{msg["Content"]}"')
-        if (options.is_auto_reply and
+              f'content:"{msg_content}"')
+        if (False and options.is_auto_reply and
                 (msg.get("User").get("NickName") in options.LISTENING_FRIENDS_NICKNAME or
                  msg.get("User").get("RemarkName") in options.LISTENING_FRIENDS_REMARK_NAME)):
-            return f'[自动回复]: {get_xiaobing_response(msg["Content"])}'
+            return f'[自动回复]: {get_xiaobing_response(msg_content)}'
 
     elif msg_type in ('Picture', 'Recording', 'Video', 'Attachment'):
         msg_content = os.path.join(rec_tmp_dir, msg['FileName'])
@@ -239,15 +266,8 @@ def information(msg):
     # import pprint
     # pprint.pprint(msg)
 
-    try:
-        msg_group_name = msg['User']['NickName']  # 群名称
-    except Exception as e:
-        print('未检测到群名称: ', e)
-
-    try:
-        msg_self_display_name = msg['User']['Self']['DisplayName']
-    except Exception as e:
-        print('未检测到自己的id: ', e)
+    msg_group_name = msg['User']['NickName']  # 群名称
+    msg_self_display_name = msg['User']['Self']['DisplayName']
 
     msg_content = ''
     # 收到信息的时间
@@ -263,6 +283,12 @@ def information(msg):
               f'group:"{msg.get("User").get("NickName")}", '
               f'user:"{msg_from_name}", '
               f'content:"{msg["Content"]}"')
+
+        if (options.is_gen_poem and
+                (msg.get("User").get("NickName") in options.LISTENING_GROUPS)):
+            if '[藏头诗]' in msg_content and '[头]' in msg_content and '[风格]' in msg_content:
+                generate_poem(msg_content, msg_group_uid)
+
         if (options.is_auto_reply and msg.get("isAt") and
                 (msg.get("User").get("NickName") in options.LISTENING_GROUPS)):
             return f'[自动回复]: {get_xiaobing_response(msg["Content"].strip(f"@{msg_self_display_name}").strip())}'
@@ -331,7 +357,7 @@ def revoke_msg(msg):
                 if msg.get("User").get("NickName") not in options.LISTENING_GROUPS:
                     print(f'"{msg.get("User").get("NickName")}" --不在防撤回的群中')
                     return
-                # uid = old_msg.get('msg_group_uid')
+                uid = old_msg.get('msg_group_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
                 send_msg = '群『{msg_group_name}』里的『{msg_from_name}』撤回了一条{msg_type_name}信息↓'.format(
                     msg_group_name=old_msg.get('msg_group_name'),
@@ -345,14 +371,14 @@ def revoke_msg(msg):
                 #     print(f'"{msg.get("User").get("NickName")}"或"{msg.get("User").get("RemarkName")}"'
                 #           f' --不在防撤回的好友中')
                 #     return
-                # uid = old_msg.get('msg_from_uid')
+                uid = old_msg.get('msg_from_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
                 send_msg = '『{msg_from_name}』撤回了一条{msg_type_name}信息↓'.format(
                     msg_from_name=msg_from_name,
                     msg_type_name=msg_type_name,
                 )
             # 私聊撤回发到filehelper中
-            uid = 'filehelper'
+            # uid = 'filehelper'
             send_revoke_msg(send_msg, uid, is_auto_forward=options.is_auto_forward)
             send_revoke_msg(msg_content, uid, msg_type, options.is_auto_forward)
 
