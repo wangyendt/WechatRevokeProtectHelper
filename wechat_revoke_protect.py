@@ -85,6 +85,9 @@ def mark_face_baidu_api(file_path, to_user_name):
     host = 'https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=GFx4vMqk6kslchni22WlLHsC&client_secret=7juflRO0Rf7m5ZZ3OcVyotvNTBLXKann'
     header = {'Content-Type': 'application/json; charset=UTF-8'}
     response = requests.post(url=host, headers=header)  # <class 'requests.models.Response'>
+    if response.status_code != 200:
+        print('请求错误')
+        return
     access_token = response.json()['access_token']
     with open(file_path, 'rb') as f:
         pic = base64.b64encode(f.read())
@@ -96,7 +99,7 @@ def mark_face_baidu_api(file_path, to_user_name):
     request_url = request_url + "?access_token=" + access_token
     result = requests.post(url=request_url, data=params, headers=header).json()
     if result:
-        if "result" in result:
+        if "result" in result and result["result"]:
             if "face_num" in result["result"]:
                 face_num = result["result"]["face_num"]
                 faces = result["result"]["face_list"]
@@ -233,9 +236,18 @@ def information(msg):
     msg_from_uid = msg['ActualUserName']  # 发送者的id
 
     msg_group_uid = msg['User']['UserName']  # 群uid
-    msg_group_name = msg['User']['NickName']  # 群名称
+    # import pprint
+    # pprint.pprint(msg)
 
-    msg_self_display_name = msg['User']['Self']['DisplayName']
+    try:
+        msg_group_name = msg['User']['NickName']  # 群名称
+    except Exception as e:
+        print('未检测到群名称: ', e)
+
+    try:
+        msg_self_display_name = msg['User']['Self']['DisplayName']
+    except Exception as e:
+        print('未检测到自己的id: ', e)
 
     msg_content = ''
     # 收到信息的时间
