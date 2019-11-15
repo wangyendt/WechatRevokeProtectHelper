@@ -33,6 +33,11 @@ import options
 
 # import pysnooper
 
+# 自己的uid
+global_vars = {
+    'me_uid': ''
+}
+
 # 文件临时存储地址
 rec_tmp_dir = os.path.join(os.getcwd(), 'tmp', 'revoke')
 
@@ -104,7 +109,8 @@ def mark_face_baidu_api(file_path, to_user_name):
                     beauty = face["beauty"]
                     beauty = round(math.sqrt(float(beauty)) * 10, 2)
                     location = face["location"]
-                    left, top, width, height = tuple(map(lambda x: int(location[x]), ('left', 'top', 'width', 'height')))
+                    left, top, width, height = tuple(
+                        map(lambda x: int(location[x]), ('left', 'top', 'width', 'height')))
                     cv2.rectangle(ret_image, (left, top), (left + width, top + height), (0, 0, 255), 6)
                     reply += f'人脸概率为: {face_prob}, 这位{age}岁的{gender}颜值评分为{beauty}分/100分\n'
                 tmp_img_path = 'tmp_img.png'
@@ -146,7 +152,8 @@ def handle_friend_msg(msg):
     msg_type = msg['Type']
 
     if msg_from_uid == msg_to_uid:
-        options.ME_UID = msg_from_uid
+        global_vars['me_uid'] = msg_from_uid
+        read_write_me_uid('w', content=global_vars['me_uid'])
 
     if msg_type == 'Picture':
         if (options.is_enable_mark_face and
@@ -157,7 +164,7 @@ def handle_friend_msg(msg):
                 os.makedirs(mark_face_dir)
             msg_content = os.path.join(mark_face_dir, msg['FileName'])
             msg['Text'](msg_content)  # 保存数据至此路径
-            if msg_from_uid == options.ME_UID:
+            if msg_from_uid == global_vars['me_uid']:
                 mark_face_baidu_api(msg_content, msg_to_uid)
             else:
                 mark_face_baidu_api(msg_content, msg_from_uid)
@@ -166,8 +173,8 @@ def handle_friend_msg(msg):
             #     os.remove(msg_content)
 
     # 不对自己的消息进行处理
-    print(f'msg_from_uid: {msg_from_uid}, me: {options.ME_UID}')
-    if msg_from_uid == options.ME_UID:
+    print(f'msg_from_uid: {msg_from_uid}, me: {global_vars["me_uid"]}')
+    if msg_from_uid == global_vars['me_uid']:
         return
 
     if msg_type == 'Text':
@@ -404,6 +411,19 @@ def before_login():
     scheduler.start()
 
 
+def read_write_me_uid(mode, me_uid_path='me.uid', **kwargs):
+    if mode == 'r':
+        with open(me_uid_path, 'r') as f:
+            lines = f.readlines()
+            if lines:
+                return lines[0]
+            else:
+                return ''
+    elif mode == 'w':
+        with open(me_uid_path, 'w') as f:
+            f.writelines(kwargs['content'])
+
+
 if __name__ == '__main__':
     if os.path.exists(rec_tmp_dir):
         # 如果存在则删除文件，清理这些文件
@@ -413,6 +433,8 @@ if __name__ == '__main__':
     else:
         # 创建缓存文件夹
         os.makedirs(rec_tmp_dir)
+
+    global_vars['me_uid'] = read_write_me_uid('r')
 
     # itchat.logout()  # 如果微信在线，则退出。重新登录。
     itchat.auto_login(hotReload=True, loginCallback=before_login, exitCallback=after_logout)

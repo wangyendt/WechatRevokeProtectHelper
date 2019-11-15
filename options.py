@@ -9,8 +9,8 @@
 @time: 2019/11/11 17:55
 """
 
-ME_UID = '@d28b2e8f9de96d1541d2f569d4645f46'
-ME_NAME = '王也 Wayne'
+# ME_UID = '@d28b2e8f9de96d1541d2f569d4645f46'
+# ME_NAME = '王也 Wayne'
 LISTENING_FRIENDS_NICKNAME = [':-D', 'Landiy', 'Suerte']
 LISTENING_FRIENDS_REMARK_NAME = ['魏锦华', '彭满萍']
 LISTENING_GROUPS = [
