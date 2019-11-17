@@ -124,11 +124,11 @@ def mark_face_baidu_api(file_path, to_user_name):
                 if os.path.exists(tmp_img_path):
                     os.remove(tmp_img_path)
             else:
-                itchat.send_msg('什么都没识别到!~', to_user_name)
+                itchat.send_msg(f'[什么也没识别到]\n {get_xiaobing_response("讲个笑话")}', to_user_name)
         else:
-            itchat.send_msg('什么都没识别到!~', to_user_name)
+            itchat.send_msg(f'[什么也没识别到]\n {get_xiaobing_response("讲个笑话")}', to_user_name)
     else:
-        itchat.send_msg('什么都没识别到!~', to_user_name)
+        itchat.send_msg(f'[什么也没识别到]\n {get_xiaobing_response("讲个笑话")}', to_user_name)
 
 
 def generate_poem(content, to_user_name):
