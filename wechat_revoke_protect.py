@@ -31,6 +31,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from itchat.content import *
 
 import options
+import random
 
 # import pysnooper
 
@@ -275,6 +276,11 @@ def information(msg):
     msg_time_rec_format = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     msg_create_time = msg['CreateTime']
     msg_type = msg['Type']
+
+    if (msg.get("User").get("NickName") in options.LISTENING_GROUPS and
+            random.random() < 0.05):
+        time.sleep(random.randint(3, 8))
+        return msg['Content'].replace('王也', msg_from_name)
 
     if msg_type == 'Text':
         msg_content = msg['Content']
