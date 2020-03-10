@@ -14,8 +14,11 @@ Introduction: 微信防撤回功能
 此项目需要的库有：itchat，apscheduler
 
 """
+import argparse
 import base64
+import math
 import os
+import random
 # import pprint
 import re
 import shutil
@@ -25,13 +28,13 @@ from urllib.parse import unquote
 
 import cv2
 import itchat
-import math
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from itchat.content import *
 
 import options
-import random
+from img2describe import img2txt
+from build_vocab import Vocabulary
 
 # import pysnooper
 
@@ -132,6 +135,21 @@ def mark_face_baidu_api(file_path, to_user_name):
         itchat.send_msg(f'[什么也没识别到]\n {get_xiaobing_response("讲个笑话")}', to_user_name)
 
 
+def gen_describe_api(file_path, to_user_name):
+    args = dict()
+    args['image'] = file_path
+    args['encoder_path'] = 'models/encoder-5-3000.ckpt'
+    args['decoder_path'] = 'models/decoder-5-3000.ckpt'
+    args['vocab_path'] = 'models/vocab.pkl'
+    args['embed_size'] = 256
+    args['hidden_size'] = 512
+    args['num_layers'] = 1
+    print(args['vocab_path'])
+    ret = img2txt(args)
+
+    itchat.send_msg(ret, to_user_name)
+
+
 def generate_poem(content, to_user_name):
     print(content)
     if '藏头诗' in content:
@@ -202,6 +220,19 @@ def handle_friend_msg(msg):
             shutil.rmtree(mark_face_dir)
             # if os.path.exists(msg_content):
             #     os.remove(msg_content)
+        if (options.is_gen_describe and
+                (msg.get("User").get("NickName") in options.LISTENING_FRIENDS_NICKNAME or
+                 msg.get("User").get("RemarkName") in options.LISTENING_FRIENDS_REMARK_NAME)):
+            gen_describe_dir = os.path.join(os.getcwd(), 'tmp', 'gen describe')
+            if not os.path.exists(gen_describe_dir):
+                os.makedirs(gen_describe_dir)
+            msg_content = os.path.join(gen_describe_dir, msg['FileName'])
+            msg['Text'](msg_content)  # 保存数据至此路径
+            if msg_from_uid == global_vars['me_uid']:
+                gen_describe_api(msg_content, msg_to_uid)
+            else:
+                gen_describe_api(msg_content, msg_from_uid)
+            shutil.rmtree(gen_describe_dir)
 
     # 不对自己的消息进行处理
     print(f'msg_from_uid: {msg_from_uid}, me: {global_vars["me_uid"]}')
@@ -214,7 +245,7 @@ def handle_friend_msg(msg):
               f'user:"{msg_from_name}", '
               f'remark name:"{msg_from_name_remark}", '
               f'content:"{msg_content}"')
-        if (False and options.is_auto_reply and
+        if (options.is_auto_reply and
                 (msg.get("User").get("NickName") in options.LISTENING_FRIENDS_NICKNAME or
                  msg.get("User").get("RemarkName") in options.LISTENING_FRIENDS_REMARK_NAME)):
             return f'[自动回复]: {get_xiaobing_response(msg_content)}'
@@ -308,12 +339,16 @@ def information(msg):
                     (msg.get("User").get("NickName") in options.LISTENING_GROUPS)):
                 mark_face_baidu_api(msg_content, msg_group_uid)
 
+            if (options.is_gen_describe and
+                    (msg.get("User").get("NickName") in options.LISTENING_GROUPS)):
+                gen_describe_api(msg_content, msg_group_uid)
+
     # 名片，是无法用 itchat 发送的
     elif msg_type == 'Card':
         recommendInfo = msg['RecommendInfo']
         nickname = recommendInfo['NickName']
         sex = '男' if recommendInfo['Sex'] == 1 else '女'
-        msg_content = '名片：{nickname},性别：{sex}'.format(nickname=nickname, sex=sex)
+        msg_content = '名片: {nickname}, 性别: {sex}'.format(nickname=nickname, sex=sex)
 
     # 地图与分享无法用 itchat 实现发送
     elif msg_type in ('Map', 'Sharing'):
@@ -379,10 +414,7 @@ def revoke_msg(msg):
                 #     return
                 uid = old_msg.get('msg_from_uid')
                 msg_type_name = content_type_dict.get(msg_type).get('name')  # 类型的中文名称
-                send_msg = '『{msg_from_name}』撤回了一条{msg_type_name}信息↓'.format(
-                    msg_from_name=msg_from_name,
-                    msg_type_name=msg_type_name,
-                )
+                send_msg = f'『{msg_from_name}』撤回了一条{msg_type_name}信息↓'
             # 私聊撤回发到filehelper中
             # uid = 'filehelper'
             send_revoke_msg(send_msg, uid, is_auto_forward=options.is_auto_forward)
