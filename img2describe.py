@@ -1,10 +1,16 @@
 import argparse
+import json
 import pickle
+import random
+from hashlib import md5
+from urllib.parse import quote
+from urllib.request import urlopen
 
 import torch
 from PIL import Image
-from model import EncoderCNN, DecoderRNN
 from torchvision import transforms
+
+from model import EncoderCNN, DecoderRNN
 
 # Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -18,6 +24,29 @@ def load_image(image_path, transform=None):
         image = transform(image).unsqueeze(0)
 
     return image
+
+
+def translate(word):
+    appid = '20200311000396087'
+    secretkey = 'qdix1LSHL95rf9Oyfujq'
+    salt = random.randint(23456, 56789)
+    q = quote(word)
+
+    s = appid + word + str(salt) + secretkey
+    m = md5()
+    m.update(s.encode('utf-8'))
+    sign = m.hexdigest()
+
+    url = 'http://api.fanyi.baidu.com/api/trans/vip/translate?q=' + q + '&from=en&to=zh&appid=' + appid + '&salt=' + str(
+        salt) + '&sign=' + sign
+
+    url_word = urlopen(url)
+    read_word = url_word.read().decode('utf-8')
+    json_word = json.loads(read_word)
+    # print(json_word)
+    t_word = json_word['trans_result'][0]['dst']
+    # print(t_word)
+    return t_word
 
 
 def img2txt(args):
@@ -61,7 +90,7 @@ def img2txt(args):
 
     # Print out the image and the generated caption
     print(sentence)
-    return f'这个图翻译如下:\n{sentence}'
+    return f'[这个图翻译如下]:\n{sentence}\n{translate(sentence)}'
     # image = Image.open(args.image)
     # plt.imshow(np.asarray(image))
 
